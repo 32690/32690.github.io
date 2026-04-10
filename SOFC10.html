@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOFC电堆性能计算（含温度动态曲线）</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;font-family:"Microsoft YaHei",sans-serif}
+        body{background:#f5f7fa;padding:20px}
+        .container{max-width:1100px;margin:0 auto;background:white;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,0.07);padding:25px}
+        h1{text-align:center;color:#2c3e50;margin-bottom:25px;font-size:22px}
+        .part{margin-bottom:22px;padding:18px;border:1px solid #eaeef2;border-radius:8px}
+        .part h2{color:#34495e;margin-bottom:12px;font-size:16px;border-left:3px solid #3498db;padding-left:8px}
+        .input-line{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:16px}
+        .input-box{flex:1;min-width:190px}
+        .input-box label{display:block;margin-bottom:4px;color:#555;font-size:14px}
+        .input-box input{width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:14px}
+        .formula{background:#f8f9fa;padding:12px;border-radius:6px;margin:8px 0;font-family:"Times New Roman";font-size:15px;overflow-x:auto}
+        .btn{display:block;width:190px;margin:25px auto;padding:11px 0;background:#3498db;color:white;border:none;border-radius:6px;font-size:15px;cursor:pointer}
+        .btn:hover{background:#2980b9}
+        .result{display:none;margin-top:25px;padding:22px;background:#e8f4fd;border-radius:8px;border-left:4px solid #3498db}
+        .result h2{color:#2980b9;margin-bottom:16px}
+        .res-item{margin-bottom:10px;font-size:14px}
+        .res-item strong{display:inline-block;width:210px;color:#2c3e50}
+        .param-table{width:100%;border-collapse:collapse;margin:12px 0}
+        .param-table th,.param-table td{border:1px solid #ddd;padding:7px 10px;text-align:center;font-size:13px}
+        .param-table th{background:#f2f2f2}
+        /* 修复图表容器样式，确保显示 */
+        .chart-container{width:100%;height:400px;margin:25px 0;display:block}
+    </style>
+    <!-- 用国内稳定CDN加载MathJax和ECharts -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <h1>SOFC电堆性能计算系统（阳极支撑中温平板式）</h1>
+
+    <!-- 入口/出口温度 -->
+    <div class="part">
+        <h2>流体温度参数（中温SOFC：600-800℃）</h2>
+        <div class="input-line">
+            <div class="input-box">
+                <label>\( T_{\text{air,in}} \) 入口空气温度 (K)</label>
+                <input type="number" id="T_air_in" value="873.15" step="0.01">
+            </div>
+            <div class="input-box">
+                <label>\( T_{\text{fuel,in}} \) 入口燃料温度 (K)</label>
+                <input type="number" id="T_fuel_in" value="873.15" step="0.01">
+            </div>
+            <div class="input-box">
+                <label>\( T_{\text{fuel,out}} \) 出口燃料温度 (K)</label>
+                <input type="number" id="T_fuel_out" value="923.15" step="0.01">
+            </div>
+            <div class="input-box">
+                <label>\( T_{\text{air,out}} \) 出口空气温度 (K)</label>
+                <input type="number" id="T_air_out" value="913.15" step="0.01">
+            </div>
+        </div>
+    </div>
+
+    <!-- 电堆核心参数 -->
+    <div class="part">
+        <h2>电堆运行参数（千瓦级系统）</h2>
+        <div class="input-line">
+            <div class="input-box">
+                <label>\( i \) 电流密度 (A/m²)</label>
+                <input type="number" id="i" value="4000" step="100">
+            </div>
+            <div class="input-box">
+                <label>\( V_{\text{cell}} \) 单电池电压 (V)</label>
+                <input type="number" id="V_cell" value="0.75" step="0.01">
+            </div>
+            <div class="input-box">
+                <label>\( S_{\text{cell}} \) 电池片面积 (m²)</label>
+                <input type="number" id="S_cell" value="0.025" step="0.001">
+            </div>
+            <div class="input-box">
+                <label>\( N_{\text{cell}} \) 电池片数量</label>
+                <input type="number" id="N_cell" value="40" step="1">
+            </div>
+        </div>
+        <div class="input-line">
+            <div class="input-box">
+                <label>\( N_{\text{H}_2} \) 氢气流量 (mol/s)</label>
+                <input type="number" id="N_H2" value="0.025" step="0.001">
+            </div>
+            <div class="input-box">
+                <label>\( N_{\text{air}} \) 空气流量 (mol/s)</label>
+                <input type="number" id="N_air" value="0.15" step="0.001">
+            </div>
+            <div class="input-box">
+                <label>\( L_{\text{eff}} \) 电堆有效长度 (m)</label>
+                <input type="number" id="L_eff" value="0.1" step="0.01">
+            </div>
+            <div class="input-box">
+                <label>\( N_{\text{node}} \) 节点数</label>
+                <input type="number" id="N_node" value="10" step="1">
+            </div>
+        </div>
+    </div>
+
+    <!-- 固定参数（符合阳极支撑中温SOFC标准） -->
+    <div class="part">
+        <h2>材料/物理固定参数</h2>
+        <table class="param-table">
+            <tr><th>参数</th><th>数值</th><th>单位</th><th>说明</th></tr>
+            <tr><td>\( h_{\text{gs}} \)</td><td>0.12</td><td>kW/(m²·K)</td><td>气固换热系数</td></tr>
+            <tr><td>\( k_{\text{ss}} \)</td><td>0.03</td><td>kW/(m·K)</td><td>固体热导率</td></tr>
+            <tr><td>\( \alpha_{\text{PEN}} \)</td><td>10.5e-6</td><td>K⁻¹</td><td>PEN热膨胀系数</td></tr>
+            <tr><td>\( E_{\text{PEN}} \)</td><td>180</td><td>GPa</td><td>PEN弹性模量</td></tr>
+            <tr><td>\( \nu_{\text{PEN}} \)</td><td>0.28</td><td>-</td><td>泊松比</td></tr>
+            <tr><td>\( \Delta L \)</td><td>0.01</td><td>m</td><td>节点间距</td></tr>
+            <tr><td>\( \text{LHV}_{\text{H}_2} \)</td><td>241.83</td><td>kJ/mol</td><td>氢气低热值</td></tr>
+            <tr><td>\( F \)</td><td>96485</td><td>C/mol</td><td>法拉第常数</td></tr>
+            <tr><td>\( R \)</td><td>8.314</td><td>J/(mol·K)</td><td>气体常数</td></tr>
+            <tr><td>\( E_{\text{a}} \)</td><td>80000</td><td>J/mol</td><td>活化能</td></tr>
+            <tr><td>\( k_0 \)</td><td>0.005</td><td>1/h</td><td>指前因子</td></tr>
+            <tr><td>\( \sigma_{\text{max}} \)</td><td>150</td><td>MPa</td><td>最大许用应力</td></tr>
+            <tr><td>\( n \)</td><td>2</td><td>-</td><td>应力衰减指数</td></tr>
+        </table>
+    </div>
+
+    <!-- 核心公式 -->
+    <div class="part">
+        <h2>核心计算公式</h2>
+        <div class="formula">
+            \[
+            \rho_{\text{PEN}} V_{\text{PEN}} C_{\text{PEN}} \frac{dT_{\text{PEN}}}{dt} = \sum Q_{\text{in,PEN}} + Q_{\text{react}} - W_{\text{out}}
+            \]
+        </div>
+        <div class="formula">
+            \[
+            \nabla T_{\text{st,avg}} = \frac{T_{\text{out}}-T_{\text{in}}}{L_{\text{eff}}}, \quad \nabla T_{\text{st,max}} = \max\left( \frac{T_{k+1} - T_k}{\Delta L} \right)
+            \]
+        </div>
+        <div class="formula">
+            \[
+            \sigma = \alpha_{\text{PEN}} \cdot E_{\text{PEN}} \cdot \nabla T_{\text{st,max}} \cdot \nu_{\text{PEN}} \times 10^{-6}
+            \]
+        </div>
+        <div class="formula">
+            \[
+            \eta_{\text{stack}} = \frac{N_{\text{cell}} \cdot S_{\text{cell}} \cdot V_{\text{cell}} \cdot i}{N_{\text{H}_2} \cdot \text{LHV}_{\text{H}_2} \times 1000} \times 100\%
+            \]
+        </div>
+        <div class="formula">
+            \[
+            \lambda = k_0 \cdot \exp\left( -\frac{E_{\text{a}}}{RT_{\text{PEN}}} \right) \cdot \left( \frac{\sigma}{\sigma_{\text{max}}} \right)^n
+            \]
+        </div>
+    </div>
+
+    <!-- 计算按钮 -->
+    <button class="btn" onclick="doCalc()">点击显示计算结果</button>
+
+    <!-- 温度动态曲线图表容器 -->
+    <div id="temperatureChart" class="chart-container"></div>
+
+    <!-- 结果区 -->
+    <div class="result" id="resultBox">
+        <h2>计算输出（千瓦级阳极支撑中温SOFC）</h2>
+        <div class="res-item"><strong>\( T_{\text{PEN}} \) PEN平均工作温度：</strong><span id="r1"></span> K</div>
+        <div class="res-item"><strong>\( \nabla T_{\text{st,avg}} \) 平均温度梯度：</strong><span id="r2"></span> K/cm</div>
+        <div class="res-item"><strong>\( \nabla T_{\text{st,max}} \) 最大温度梯度：</strong><span id="r3"></span> K/cm</div>
+        <div class="res-item"><strong>\( \sigma \) 热应力：</strong><span id="r4"></span> MPa</div>
+        <div class="res-item"><strong>\( P_{\text{stack}} \) 电堆输出功率：</strong><span id="r5"></span> kW</div>
+        <div class="res-item"><strong>\( \eta_{\text{stack}} \) 电堆效率：</strong><span id="r6"></span> %</div>
+        <div class="res-item"><strong>\( \lambda \) 寿命衰减速率：</strong><span id="r7"></span> 1/h</div>
+    </div>
+</div>
+
+<script>
+let chart;
+// 页面加载完成后初始化图表，避免时序问题
+window.onload = function() {
+    initChart();
+};
+
+function initChart() {
+    // 检查ECharts是否加载成功
+    if (typeof echarts === 'undefined') {
+        alert("ECharts加载失败，请检查网络连接，或更换CDN地址");
+        return;
+    }
+    chart = echarts.init(document.getElementById('temperatureChart'));
+    const option = {
+        title: {
+            text: 'SOFC电堆温度随时间动态变化',
+            left: 'center',
+            textStyle: { fontSize: 16 }
+        },
+        tooltip: {
+            trigger: 'axis',
+            formatter: function(params) {
+                let res = `时间：${params[0].axisValue} s<br/>`;
+                params.forEach(item => {
+                    res += `${item.seriesName}：${item.value.toFixed(2)} K<br/>`;
+                });
+                return res;
+            }
+        },
+        legend: {
+            data: ['PEN平均温度', '入口空气温度', '入口燃料温度', '出口空气温度', '出口燃料温度'],
+            bottom: 10
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            top: '15%',
+            bottom: '12%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'value',
+            name: '时间 (s)',
+            nameTextStyle: { fontSize: 12 },
+            min: 0,
+            max: 100,
+            interval: 10
+        },
+        yAxis: {
+            type: 'value',
+            name: '温度 (K)',
+            nameTextStyle: { fontSize: 12 },
+            min: 850,
+            max: 950
+        },
+        series: [
+            {
+                name: 'PEN平均温度',
+                type: 'line',
+                data: [],
+                smooth: true,
+                lineStyle: { width: 2 },
+                itemStyle: { color: '#e74c3c' }
+            },
+            {
+                name: '入口空气温度',
+                type: 'line',
+                data: [],
+                smooth: true,
+                lineStyle: { width: 2, type: 'dashed' },
+                itemStyle: { color: '#3498db' }
+            },
+            {
+                name: '入口燃料温度',
+                type: 'line',
+                data: [],
+                smooth: true,
+                lineStyle: { width: 2, type: 'dashed' },
+                itemStyle: { color: '#2ecc71' }
+            },
+            {
+                name: '出口空气温度',
+                type: 'line',
+                data: [],
+                smooth: true,
+                lineStyle: { width: 2, type: 'dotted' },
+                itemStyle: { color: '#f39c12' }
+            },
+            {
+                name: '出口燃料温度',
+                type: 'line',
+                data: [],
+                smooth: true,
+                lineStyle: { width: 2, type: 'dotted' },
+                itemStyle: { color: '#9b59b6' }
+            }
+        ]
+    };
+    chart.setOption(option);
+    // 自适应窗口
+    window.addEventListener('resize', () => chart.resize());
+}
+
+function doCalc(){
+    // 输入参数读取
+    const T_air_in = parseFloat(document.getElementById('T_air_in').value);
+    const T_fuel_in = parseFloat(document.getElementById('T_fuel_in').value);
+    const T_air_out = parseFloat(document.getElementById('T_air_out').value);
+    const T_fuel_out = parseFloat(document.getElementById('T_fuel_out').value);
+    const i = parseFloat(document.getElementById('i').value);
+    const V_cell = parseFloat(document.getElementById('V_cell').value);
+    const S_cell = parseFloat(document.getElementById('S_cell').value);
+    const N_cell = parseFloat(document.getElementById('N_cell').value);
+    const N_H2 = parseFloat(document.getElementById('N_H2').value);
+    const N_air = parseFloat(document.getElementById('N_air').value);
+    const L_eff = parseFloat(document.getElementById('L_eff').value);
+    const N_node = parseFloat(document.getElementById('N_node').value);
+
+    // 固定参数
+    const α_PEN = 10.5e-6;
+    const E_PEN = 180;
+    const ν_PEN = 0.28;
+    const ΔL = 0.01;
+    const LHV_H2 = 241.83;
+    const R = 8.314;
+    const E_a = 80000;
+    const k_0 = 0.005;
+    const σ_max = 150;
+    const n = 2;
+
+    // 核心计算
+    const T_PEN_base = (T_air_in + T_fuel_in + T_air_out + T_fuel_out) / 4;
+    const ΔT_avg = Math.max(T_air_out, T_fuel_out) - Math.min(T_air_in, T_fuel_in);
+    const grad_avg = (ΔT_avg / (L_eff * 100)).toFixed(4);
+    const grad_max = (ΔT_avg / (N_node * ΔL * 100)).toFixed(4);
+    const stress = (α_PEN * E_PEN * parseFloat(grad_max) * 100 * ν_PEN).toFixed(2);
+    const P_stack = (N_cell * S_cell * V_cell * i / 1000).toFixed(2);
+    const power_out = N_cell * S_cell * V_cell * i;
+    const power_in = N_H2 * LHV_H2 * 1000;
+    const eff = (power_out / power_in * 100).toFixed(2);
+    const exp_term = Math.exp(-E_a / (R * T_PEN_base));
+    const stress_ratio = parseFloat(stress) / σ_max;
+    const decay = (k_0 * exp_term * Math.pow(stress_ratio, n)).toFixed(6);
+
+    // 结果赋值
+    document.getElementById('r1').textContent = T_PEN_base.toFixed(2);
+    document.getElementById('r2').textContent = grad_avg;
+    document.getElementById('r3').textContent = grad_max;
+    document.getElementById('r4').textContent = stress;
+    document.getElementById('r5').textContent = P_stack;
+    document.getElementById('r6').textContent = eff;
+    document.getElementById('r7').textContent = decay;
+    document.getElementById('resultBox').style.display = 'block';
+
+    // 生成温度时间数据
+    const timePoints = 100;
+    const penTempData = [];
+    const airInTempData = [];
+    const fuelInTempData = [];
+    const airOutTempData = [];
+    const fuelOutTempData = [];
+
+    for (let t = 0; t <= timePoints; t++) {
+        // PEN温度：启动温升+稳态波动
+        const penTemp = t < 30 ? 850 + (T_PEN_base - 850) * (t/30) : T_PEN_base + Math.sin(t/10) * 2;
+        penTempData.push([t, penTemp]);
+        // 入口空气：小幅上升
+        airInTempData.push([t, T_air_in + t * 0.05]);
+        // 入口燃料：小幅上升
+        fuelInTempData.push([t, T_fuel_in + t * 0.04]);
+        // 出口空气：快速温升+稳态
+        const airOutTemp = t < 40 ? T_air_in + (T_air_out - T_air_in) * (t/40) : T_air_out + Math.sin(t/8) * 1.5;
+        airOutTempData.push([t, airOutTemp]);
+        // 出口燃料：快速温升+稳态
+        const fuelOutTemp = t < 45 ? T_fuel_in + (T_fuel_out - T_fuel_in) * (t/45) : T_fuel_out + Math.sin(t/9) * 2;
+        fuelOutTempData.push([t, fuelOutTemp]);
+    }
+
+    // 更新图表数据
+    chart.setOption({
+        series: [
+            { data: penTempData },
+            { data: airInTempData },
+            { data: fuelInTempData },
+            { data: airOutTempData },
+            { data: fuelOutTempData }
+        ]
+    });
+
+    // 动态绘制动画
+    let currentTime = 0;
+    const animateInterval = setInterval(() => {
+        currentTime += 1;
+        if (currentTime > timePoints) {
+            clearInterval(animateInterval);
+            return;
+        }
+        chart.setOption({
+            series: [
+                { data: penTempData.slice(0, currentTime) },
+                { data: airInTempData.slice(0, currentTime) },
+                { data: fuelInTempData.slice(0, currentTime) },
+                { data: airOutTempData.slice(0, currentTime) },
+                { data: fuelOutTempData.slice(0, currentTime) }
+            ]
+        });
+    }, 50);
+}
+</script>
+</body>
+</html>
